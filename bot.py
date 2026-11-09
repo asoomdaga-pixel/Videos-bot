@@ -3,64 +3,62 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
 
-# البيانات الخاصة بك
-TOKEN = "9017591447:AAGfHfZem368BGl7836cvRRI2hgXfIJdgJg"
-ADSTERRA_LINK = "https://auctionr.org/4/2a829ce7c2b25d5fcf74ed829c2b8d0f"
-
+# التوكن الخاص بك الذي زودتني به
+TOKEN = "9017663390:AAEVI07KWDfza6niiypgPxo8rWn4CfGBTZI"
 bot = telebot.TeleBot(TOKEN)
+
+# رابط الإعلان الجديد النظيف
+AD_LINK = "https://uplcm.com/4/12196223"
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    welcome_text = (
-        "مرحباً بك في بوت تحميل الفيديوهات! 📥\n\n"
-        "أرسل لي رابط الفيديو من أي منصة (يوتيوب، تيك توك، انستغرام) وسأقوم بتحميله لك فوراً."
-    )
-    bot.reply_to(message, welcome_text)
+    bot.reply_to(message, "مرحباً بك في بوت تحميل الفيديوهات! 🎥\nأرسل لي أي رابط فيديو (من يوتيوب، تيك توك، وغيرها) وسأقوم تجهيزه لك فوراً.")
 
-@bot.message_handler(func=lambda message: message.text and message.text.startswith('http'))
-def download_video(message):
+@bot.message_handler(func=lambda message: True)
+def handle_video_link(message):
     url = message.text.strip()
-    processing_msg = bot.reply_to(message, "⏳ جاري معالجة الرابط وتحميل الفيديو...")
-
-    output_template = "video.mp4"
     
-    ydl_opts = {
-        'format': 'best[ext=mp4]/best',
-        'outtmpl': output_template,
-        'max_filesize': 50 * 1024 * 1024, # 50 ميجا الحد الأقصى للبوت المجاني
-    }
+    if not url.startswith("http"):
+        bot.reply_to(message, "الرجاء إرسال رابط صحيح يبدأ بـ http أو https.")
+        return
+
+    msg = bot.reply_to(message, "⏳ جاري معالجة الرابط وجلب خيارات التحميل...")
 
     try:
+        # إعدادات yt-dlp لجلب عنوان الفيديو ورابط التحميل المباشر
+        ydl_opts = {'format': 'best', 'noplaylist': True}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            info = ydl.extract_info(url, download=False)
+            video_url = info.get('url')
+            video_title = info.get('title', 'video')
 
-        # زر إعلاني يحتوي على رابط Adsterra الخاص بك
+        # إنشاء الأزرار التفاعلية لإجبار المستخدم على التفاعل مع الإعلان أولاً
         markup = InlineKeyboardMarkup()
-        ad_button = InlineKeyboardButton("🔗 اضغط هنا للتحميل السريع والمنتظر", url=ADSTERRA_LINK)
-        markup.add(ad_button)
-
-        with open(output_template, 'rb') as video:
-            bot.send_video(
-                message.chat.id, 
-                video, 
-                caption="✅ تم تحميل الفيديو بنجاح!\nلا تنسَ دعمنا بالضغط على الزر أدناه.",
-                reply_markup=markup
-            )
         
-        bot.delete_message(message.chat.id, processing_msg.message_id)
+        # زر الإعلان الإجباري بالرابط الجديد النظيف
+        ad_button = InlineKeyboardButton("📢 1. اضغط هنا لمشاهدة الإعلان أولاً (مهم)", url=AD_LINK)
+        
+        # زر التحميل الفعلي الذي يظهر للمستخدم
+        download_button = InlineKeyboardButton("📥 2. اضغط هنا لتحميل الفيديو مباشرة", url=video_url)
+        
+        markup.add(ad_button)
+        markup.add(download_button)
+
+        bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=msg.message_id,
+            text=f"🎬 **{video_title}**\n\nلتحميل الفيديو، يرجى دعمنا بالضغط على زر الإعلان الأول (1) ثم الضغط على زر التحميل (2):",
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
 
     except Exception as e:
         bot.edit_message_text(
-            f"❌ حدث خطأ أثناء التحميل: {str(e)}", 
-            message.chat.id, 
-            processing_msg.message_id
+            chat_id=message.chat.id,
+            message_id=msg.message_id,
+            text="❌ حدث خطأ أثناء جلب الفيديو. تأكد أن الرابط صالح ومتاح للتحميل."
         )
-    
-    finally:
-        if os.path.exists(output_template):
-            os.remove(output_template)
 
+# تشغيل البوت باستمرار
 if __name__ == "__main__":
-    # يمكن رفع هذا السكربت على استضافة مجانية تعمل بـ Webhook دون الحاجة لاتصال هاتفك بالإنترنت
-    print("البوت جاهز ومربوط برابط Adsterra!")
     bot.infinity_polling()
